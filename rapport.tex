@@ -1,0 +1,665 @@
+\documentclass[12pt,a4paper]{article}
+
+%% ============================================
+%% RAPPORT - MÉTHODE DES MOINDRES CARRÉS
+%% ============================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{tcolorbox}
+\usepackage{float}
+\usepackage{framed}
+\usepackage{mdframed}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{positioning, arrows.meta, calc}
+
+\geometry{margin=2.5cm}
+
+%% --- COULEURS ---
+\definecolor{bleu}{HTML}{003366}
+\definecolor{bleuclair}{HTML}{e6f0fa}
+\definecolor{noir}{HTML}{000000}
+\definecolor{gris}{HTML}{f5f5f5}
+\definecolor{vert}{HTML}{228B22}
+\definecolor{rouge}{HTML}{CC0000}
+
+%% --- STYLE DU CODE PYTHON ---
+\lstdefinestyle{python}{
+    backgroundcolor=\color{gris},
+    commentstyle=\color{vert}\itshape,
+    keywordstyle=\color{bleu}\bfseries,
+    numberstyle=\tiny\color{noir},
+    stringstyle=\color{rouge},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    numbers=left,
+    numbersep=8pt,
+    frame=single,
+    rulecolor=\color{noir},
+    showstringspaces=false,
+    tabsize=4,
+    language=Python
+}
+\lstset{style=python}
+
+%% --- ENCADRÉS ---
+\newmdenv[
+    linecolor=bleu,
+    linewidth=2pt,
+    backgroundcolor=bleuclair,
+    innertopmargin=10pt,
+    innerbottommargin=10pt,
+    innerleftmargin=10pt,
+    innerrightmargin=10pt,
+]{resultatbox}
+
+\newmdenv[
+    linecolor=noir,
+    linewidth=1pt,
+    backgroundcolor=white,
+    innertopmargin=10pt,
+    innerbottommargin=10pt,
+    innerleftmargin=10pt,
+    innerrightmargin=10pt,
+]{theorembox}
+
+%% --- EN-TÊTE ET PIED DE PAGE ---
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textcolor{bleu}{Méthode des Moindres Carrés}}
+\fancyhead[R]{\textcolor{bleu}{Daoud Hechaïchi}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{bleu}\leaders\hrule height \headrulewidth\hfill}}
+
+%% --- STYLE DES SECTIONS ---
+\titleformat{\section}{\Large\bfseries\color{bleu}}{\thesection}{1em}{}[\color{bleu}\titlerule]
+\titleformat{\subsection}{\large\bfseries\color{noir}}{\thesubsection}{1em}{}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=bleu,
+    urlcolor=bleu,
+}
+
+%% --- Commandes personnalisées ---
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\| #1 \right\|}
+\newcommand{\T}{^\top}
+\newcommand{\pinv}{^\dagger}
+
+\begin{document}
+
+%% --- PAGE DE TITRE ---
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+
+    {\Large\textbf{\textcolor{bleu}{ALGÈBRE LINÉAIRE \& MACHINE LEARNING}}}\\[0.3cm]
+    {\large Fondements Mathématiques}\\[1.5cm]
+
+    \noindent\rule{\textwidth}{2pt}\\[0.8cm]
+    {\Huge\textbf{Méthode des}}\\[0.3cm]
+    {\Huge\textbf{Moindres Carrés}}\\[0.5cm]
+    {\Large\textit{Pseudo-inverse de Moore-Penrose $A^\dagger$}}\\[0.8cm]
+    \noindent\rule{\textwidth}{2pt}\\[2cm]
+
+    {\large\textbf{Résolution de systèmes surdéterminés}}\\[0.3cm]
+    {\large\textbf{Solution optimale au sens de la norme $L^2$}}\\[3cm]
+
+    \vfill
+
+    \noindent\fbox{\parbox{0.6\textwidth}{
+        \centering
+        \vspace{0.5cm}
+        {\Large\textbf{Daoud Hechaïchi}}\\[0.3cm]
+        {\large Rapport Technique}\\[0.1cm]
+        {\large Mathématiques Appliquées}\\[0.5cm]
+    }}\\[1.5cm]
+
+    {\large\today}
+\end{titlepage}
+
+%% --- TABLE DES MATIÈRES ---
+\tableofcontents
+\newpage
+
+%% ============================================
+%% CONTENU
+%% ============================================
+
+\section{Introduction}
+
+La \textbf{méthode des moindres carrés} est l'une des techniques les plus importantes en mathématiques appliquées. Inventée indépendamment par \textbf{Carl Friedrich Gauss} (1795) et \textbf{Adrien-Marie Legendre} (1805), elle permet de trouver la meilleure approximation d'un système d'équations linéaires qui n'a pas de solution exacte.
+
+\subsection{Motivation}
+
+En pratique, on rencontre souvent des systèmes \textbf{surdéterminés} : plus d'équations que d'inconnues.
+
+\textbf{Exemples concrets :}
+\begin{itemize}
+    \item Ajuster une droite à un nuage de points expérimentaux
+    \item Calibrer un capteur avec de nombreuses mesures redondantes
+    \item Reconstruire une image à partir de données incomplètes
+    \item Prédire une variable à partir de plusieurs observations
+\end{itemize}
+
+\begin{resultatbox}
+\begin{center}
+\textbf{\textcolor{bleu}{PROBLÈME CENTRAL}}
+
+Étant donné un système $A\mathbf{x} = \mathbf{b}$ sans solution exacte, trouver le vecteur $\hat{\mathbf{x}}$ qui minimise l'erreur quadratique $\norm{A\mathbf{x} - \mathbf{b}}^2$.
+\end{center}
+\end{resultatbox}
+
+\subsection{Exemple introductif}
+
+On veut ajuster une droite $y = ax + b$ aux trois points : $(1, 2)$, $(2, 3)$, $(3, 5)$.
+
+Cela donne le système :
+\begin{align*}
+a + b &= 2 \\
+2a + b &= 3 \\
+3a + b &= 5
+\end{align*}
+
+\textbf{Forme matricielle :}
+\[
+\underbrace{\begin{pmatrix} 1 & 1 \\ 2 & 1 \\ 3 & 1 \end{pmatrix}}_{A}
+\underbrace{\begin{pmatrix} a \\ b \end{pmatrix}}_{\mathbf{x}}
+= \underbrace{\begin{pmatrix} 2 \\ 3 \\ 5 \end{pmatrix}}_{\mathbf{b}}
+\]
+
+Ici $A$ est une matrice $3 \times 2$ : 3 équations pour 2 inconnues. Le système est \textbf{surdéterminé} et n'a généralement pas de solution exacte.
+
+\newpage
+\section{Formulation Mathématique}
+
+\subsection{Le problème des moindres carrés}
+
+\begin{theorembox}
+\textbf{Problème des Moindres Carrés}
+
+Soit $A \in \R^{m \times n}$ avec $m > n$ (système surdéterminé) et $\mathbf{b} \in \R^m$.
+
+On cherche $\hat{\mathbf{x}} \in \R^n$ qui minimise :
+\begin{equation}
+\hat{\mathbf{x}} = \arg\min_{\mathbf{x} \in \R^n} \norm{A\mathbf{x} - \mathbf{b}}_2^2
+\end{equation}
+
+où $\norm{\cdot}_2$ désigne la norme euclidienne : $\norm{\mathbf{v}}_2 = \sqrt{v_1^2 + v_2^2 + \cdots + v_n^2}$
+\end{theorembox}
+
+\subsection{Développement de la fonction coût}
+
+La fonction à minimiser est :
+\begin{align}
+f(\mathbf{x}) &= \norm{A\mathbf{x} - \mathbf{b}}_2^2 \\[0.3cm]
+&= (A\mathbf{x} - \mathbf{b})\T (A\mathbf{x} - \mathbf{b}) \\[0.3cm]
+&= \mathbf{x}\T A\T A \mathbf{x} - 2\mathbf{b}\T A \mathbf{x} + \mathbf{b}\T \mathbf{b}
+\end{align}
+
+C'est une fonction \textbf{quadratique convexe} en $\mathbf{x}$ : elle possède un unique minimum global.
+
+\subsection{Condition d'optimalité}
+
+Pour trouver le minimum, on annule le gradient :
+\begin{equation}
+\nabla f(\mathbf{x}) = 2A\T A \mathbf{x} - 2A\T \mathbf{b} = \mathbf{0}
+\end{equation}
+
+\begin{resultatbox}
+\begin{center}
+\textbf{\textcolor{bleu}{ÉQUATIONS NORMALES}}
+\begin{equation}
+\boxed{A\T A \hat{\mathbf{x}} = A\T \mathbf{b}}
+\end{equation}
+\end{center}
+\end{resultatbox}
+
+\vspace{0.3cm}
+
+\textbf{Remarque :} Le terme "équations normales" vient du fait que le vecteur erreur $\mathbf{b} - A\hat{\mathbf{x}}$ est \textit{normal} (perpendiculaire) à l'espace colonne de $A$.
+
+\newpage
+\section{La Pseudo-inverse de Moore-Penrose}
+
+\subsection{Définition}
+
+Quand $A\T A$ est inversible (ce qui est le cas si les colonnes de $A$ sont linéairement indépendantes), on peut résoudre les équations normales explicitement.
+
+\begin{theorembox}
+\textbf{Définition : Pseudo-inverse de Moore-Penrose}
+
+La \textbf{pseudo-inverse} (ou inverse généralisée) de $A$ est :
+\begin{equation}
+\boxed{A\pinv = (A\T A)^{-1} A\T}
+\end{equation}
+
+La solution des moindres carrés s'écrit alors :
+\begin{equation}
+\boxed{\hat{\mathbf{x}} = A\pinv \mathbf{b} = (A\T A)^{-1} A\T \mathbf{b}}
+\end{equation}
+\end{theorembox}
+
+\subsection{Pourquoi "pseudo-inverse" ?}
+
+Pour une matrice carrée inversible $A$, on a $A^{-1} A = I$. Pour une matrice rectangulaire, $A\pinv$ joue un rôle similaire :
+
+\begin{itemize}
+    \item $A\pinv A = I_n$ (matrice identité $n \times n$)
+    \item $A A\pinv \neq I_m$ en général (c'est une matrice de projection)
+\end{itemize}
+
+\subsection{Propriétés de Moore-Penrose}
+
+\begin{theorembox}
+\textbf{Les 4 conditions de Moore-Penrose}
+
+$A\pinv$ est l'unique matrice satisfaisant :
+\begin{enumerate}
+    \item $A A\pinv A = A$
+    \item $A\pinv A A\pinv = A\pinv$
+    \item $(A A\pinv)\T = A A\pinv$ \quad (symétrie)
+    \item $(A\pinv A)\T = A\pinv A$ \quad (symétrie)
+\end{enumerate}
+\end{theorembox}
+
+\subsection{Dimensions des matrices}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|c|l|}
+\hline
+\textbf{Matrice} & \textbf{Dimensions} & \textbf{Description} \\
+\hline
+$A$ & $m \times n$ & Matrice du système ($m > n$) \\
+$A\T$ & $n \times m$ & Transposée de $A$ \\
+$A\T A$ & $n \times n$ & Matrice de Gram (carrée, symétrique) \\
+$(A\T A)^{-1}$ & $n \times n$ & Inverse de la matrice de Gram \\
+$A\pinv$ & $n \times m$ & Pseudo-inverse \\
+\hline
+\end{tabular}
+\caption{Dimensions des matrices dans le calcul de $A\pinv$}
+\end{table}
+
+\newpage
+\section{Interprétation Géométrique}
+
+\subsection{Projection orthogonale}
+
+La solution des moindres carrés a une interprétation géométrique élégante.
+
+\begin{theorembox}
+\textbf{Théorème de projection}
+
+$\hat{\mathbf{x}}$ est la solution des moindres carrés si et seulement si le vecteur erreur $\mathbf{r} = \mathbf{b} - A\hat{\mathbf{x}}$ est \textbf{orthogonal} à toutes les colonnes de $A$ :
+\begin{equation}
+A\T (\mathbf{b} - A\hat{\mathbf{x}}) = \mathbf{0}
+\end{equation}
+
+Autrement dit : $A\hat{\mathbf{x}}$ est la \textbf{projection orthogonale} de $\mathbf{b}$ sur l'espace colonne de $A$.
+\end{theorembox}
+
+\subsection{Illustration}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.8]
+    % Plan (espace colonne de A)
+    \fill[bleuclair, opacity=0.6] (-0.3,-0.3) -- (3.2,-0.3) -- (3.5,1.8) -- (0,1.8) -- cycle;
+
+    % Vecteurs colonnes de A
+    \draw[-{Stealth}, thick, bleu] (0,0) -- (2.2,0.4) node[right] {$\mathbf{a}_1$};
+    \draw[-{Stealth}, thick, bleu] (0,0) -- (0.6,1.2) node[above] {$\mathbf{a}_2$};
+
+    % Vecteur b (hors du plan)
+    \draw[-{Stealth}, very thick, rouge] (0,0) -- (1.6,2.6) node[above right] {$\mathbf{b}$};
+
+    % Projection (dans le plan)
+    \draw[-{Stealth}, very thick, vert] (0,0) -- (1.9,1.1) node[below right] {$A\hat{\mathbf{x}}$};
+
+    % Résidu (perpendiculaire)
+    \draw[-{Stealth}, thick, orange, dashed] (1.9,1.1) -- (1.6,2.6);
+    \node[orange] at (2.1, 1.9) {$\mathbf{r}$};
+
+    % Angle droit
+    \draw[thick] (1.9,1.1) -- (1.72,1.25) -- (1.57,1.1);
+
+    % Labels
+    \node[bleu] at (1.8, 0.15) {$\text{Im}(A)$};
+
+\end{tikzpicture}
+\caption{$A\hat{\mathbf{x}}$ est la projection de $\mathbf{b}$ sur l'espace colonne de $A$. Le vecteur $\mathbf{r} = \mathbf{b} - A\hat{\mathbf{x}}$ est perpendiculaire au plan.}
+\end{figure}
+
+\subsection{Matrice de projection}
+
+La matrice qui projette sur l'espace colonne de $A$ est :
+\begin{equation}
+P = A A\pinv = A(A\T A)^{-1} A\T
+\end{equation}
+
+\textbf{Propriétés :}
+\begin{itemize}
+    \item $P^2 = P$ \quad (idempotence : projeter deux fois = projeter une fois)
+    \item $P\T = P$ \quad (symétrie)
+    \item $P \mathbf{b} = A\hat{\mathbf{x}}$ \quad (le projeté de $\mathbf{b}$)
+\end{itemize}
+
+\newpage
+\section{Exemple Numérique Détaillé}
+
+Reprenons l'exemple : ajuster $y = ax + b$ aux points $(1, 2)$, $(2, 3)$, $(3, 5)$.
+
+\subsection{Construction des matrices}
+
+\[
+A = \begin{pmatrix} 1 & 1 \\ 2 & 1 \\ 3 & 1 \end{pmatrix}, \quad
+\mathbf{b} = \begin{pmatrix} 2 \\ 3 \\ 5 \end{pmatrix}
+\]
+
+\subsection{Calcul de $A\T A$}
+
+\[
+A\T A = \begin{pmatrix} 1 & 2 & 3 \\ 1 & 1 & 1 \end{pmatrix}
+\begin{pmatrix} 1 & 1 \\ 2 & 1 \\ 3 & 1 \end{pmatrix}
+= \begin{pmatrix} 1+4+9 & 1+2+3 \\ 1+2+3 & 1+1+1 \end{pmatrix}
+= \begin{pmatrix} 14 & 6 \\ 6 & 3 \end{pmatrix}
+\]
+
+\subsection{Calcul de $A\T \mathbf{b}$}
+
+\[
+A\T \mathbf{b} = \begin{pmatrix} 1 & 2 & 3 \\ 1 & 1 & 1 \end{pmatrix}
+\begin{pmatrix} 2 \\ 3 \\ 5 \end{pmatrix}
+= \begin{pmatrix} 2+6+15 \\ 2+3+5 \end{pmatrix}
+= \begin{pmatrix} 23 \\ 10 \end{pmatrix}
+\]
+
+\subsection{Inversion de $A\T A$}
+
+Pour une matrice $2 \times 2$ : $\begin{pmatrix} a & b \\ c & d \end{pmatrix}^{-1} = \frac{1}{ad-bc} \begin{pmatrix} d & -b \\ -c & a \end{pmatrix}$
+
+\[
+(A\T A)^{-1} = \frac{1}{14 \cdot 3 - 6 \cdot 6} \begin{pmatrix} 3 & -6 \\ -6 & 14 \end{pmatrix}
+= \frac{1}{6} \begin{pmatrix} 3 & -6 \\ -6 & 14 \end{pmatrix}
+= \begin{pmatrix} 0.5 & -1 \\ -1 & 7/3 \end{pmatrix}
+\]
+
+\subsection{Solution finale}
+
+\[
+\hat{\mathbf{x}} = (A\T A)^{-1} A\T \mathbf{b}
+= \begin{pmatrix} 0.5 & -1 \\ -1 & 7/3 \end{pmatrix}
+\begin{pmatrix} 23 \\ 10 \end{pmatrix}
+= \begin{pmatrix} 11.5 - 10 \\ -23 + 70/3 \end{pmatrix}
+= \begin{pmatrix} 1.5 \\ 1/3 \end{pmatrix}
+\]
+
+\begin{resultatbox}
+\begin{center}
+\textbf{\textcolor{bleu}{RÉSULTAT}}
+
+La droite des moindres carrés est : $\boxed{y = 1.5x + \frac{1}{3} \approx 1.5x + 0.333}$
+\end{center}
+\end{resultatbox}
+
+\newpage
+\section{Lien avec la SVD}
+
+La \textbf{Décomposition en Valeurs Singulières} (SVD) offre une autre façon de calculer $A\pinv$, plus stable numériquement.
+
+\begin{theorembox}
+\textbf{SVD et Pseudo-inverse}
+
+Toute matrice $A \in \R^{m \times n}$ admet une décomposition :
+\begin{equation}
+A = U \Sigma V\T
+\end{equation}
+
+où $U$ et $V$ sont orthogonales, et $\Sigma$ contient les valeurs singulières sur sa diagonale.
+
+La pseudo-inverse est alors :
+\begin{equation}
+A\pinv = V \Sigma\pinv U\T
+\end{equation}
+
+où $\Sigma\pinv$ s'obtient en inversant les valeurs singulières non nulles.
+\end{theorembox}
+
+\textbf{Avantage :} Cette méthode fonctionne même quand $A\T A$ est singulière ou mal conditionnée. C'est pourquoi les bibliothèques numériques (NumPy, MATLAB) utilisent la SVD en interne.
+
+\section{Application : Régression Linéaire}
+
+La régression linéaire simple est l'application la plus classique des moindres carrés.
+
+\subsection{Problème}
+
+Étant donné $m$ points $(x_i, y_i)$, trouver la droite $y = ax + b$ qui "passe au mieux" par ces points.
+
+\subsection{Formulation matricielle}
+
+\[
+\underbrace{\begin{pmatrix} x_1 & 1 \\ x_2 & 1 \\ \vdots & \vdots \\ x_m & 1 \end{pmatrix}}_{A}
+\underbrace{\begin{pmatrix} a \\ b \end{pmatrix}}_{\mathbf{x}}
+= \underbrace{\begin{pmatrix} y_1 \\ y_2 \\ \vdots \\ y_m \end{pmatrix}}_{\mathbf{y}}
+\]
+
+La solution est : $\begin{pmatrix} \hat{a} \\ \hat{b} \end{pmatrix} = (A\T A)^{-1} A\T \mathbf{y}$
+
+\subsection{Régression polynomiale}
+
+Pour ajuster un polynôme de degré $d$ : $y = a_0 + a_1 x + a_2 x^2 + \cdots + a_d x^d$
+
+\[
+A = \begin{pmatrix}
+1 & x_1 & x_1^2 & \cdots & x_1^d \\
+1 & x_2 & x_2^2 & \cdots & x_2^d \\
+\vdots & \vdots & \vdots & \ddots & \vdots \\
+1 & x_m & x_m^2 & \cdots & x_m^d
+\end{pmatrix}
+\]
+
+C'est la \textbf{matrice de Vandermonde}.
+
+\newpage
+\section{Implémentation Python}
+
+Voici une implémentation \textbf{from scratch}, sans classes, uniquement avec NumPy.
+
+\subsection{Résolution par les équations normales}
+
+\begin{lstlisting}
+import numpy as np
+
+def moindres_carres(A, b):
+    """
+    Resout min ||Ax - b||^2 par les equations normales.
+    """
+    # Calcul de A^T A
+    ATA = np.dot(A.T, A)
+
+    # Calcul de A^T b
+    ATb = np.dot(A.T, b)
+
+    # Resolution du systeme ATA * x = ATb
+    x_hat = np.linalg.solve(ATA, ATb)
+
+    return x_hat
+\end{lstlisting}
+
+\subsection{Calcul de la pseudo-inverse}
+
+\begin{lstlisting}
+def pseudo_inverse(A):
+    """
+    Calcule A^dagger = (A^T A)^{-1} A^T
+    """
+    ATA = np.dot(A.T, A)
+    ATA_inv = np.linalg.inv(ATA)
+    A_pinv = np.dot(ATA_inv, A.T)
+    return A_pinv
+\end{lstlisting}
+
+\subsection{Exemple complet de regression}
+
+\begin{lstlisting}
+import numpy as np
+
+# Donnees
+x_data = np.array([1, 2, 3, 4, 5])
+y_data = np.array([2.1, 3.9, 6.2, 7.8, 10.1])
+
+# Matrice A : [x, 1]
+A = np.column_stack([x_data, np.ones(len(x_data))])
+
+# Solution par equations normales
+coeffs = moindres_carres(A, y_data)
+a, b = coeffs[0], coeffs[1]
+
+print(f"Droite: y = {a:.4f}x + {b:.4f}")
+# Affiche: Droite: y = 1.9800x + 0.0600
+
+# Verification avec pseudo-inverse
+A_pinv = pseudo_inverse(A)
+coeffs_verif = np.dot(A_pinv, y_data)
+print(f"Verification: a = {coeffs_verif[0]:.4f}, b = {coeffs_verif[1]:.4f}")
+\end{lstlisting}
+
+\textbf{Note :} NumPy fournit \texttt{np.linalg.pinv(A)} pour la pseudo-inverse via SVD (plus stable), et \texttt{np.linalg.lstsq(A, b)} pour résoudre directement le problème.
+
+\newpage
+\section{Régularisation de Tikhonov (Ridge)}
+
+Quand $A\T A$ est mal conditionnée (presque singulière), la solution peut être instable. La \textbf{régularisation} stabilise le problème.
+
+\begin{theorembox}
+\textbf{Moindres carrés régularisés (Ridge)}
+
+On ajoute un terme de pénalité sur la norme de $\mathbf{x}$ :
+\begin{equation}
+\min_{\mathbf{x}} \left( \norm{A\mathbf{x} - \mathbf{b}}_2^2 + \lambda \norm{\mathbf{x}}_2^2 \right)
+\end{equation}
+
+La solution devient :
+\begin{equation}
+\boxed{\hat{\mathbf{x}}_\lambda = (A\T A + \lambda I)^{-1} A\T \mathbf{b}}
+\end{equation}
+\end{theorembox}
+
+\textbf{Effet du paramètre $\lambda$ :}
+\begin{itemize}
+    \item $\lambda = 0$ : solution classique des moindres carrés
+    \item $\lambda$ petit : légère régularisation
+    \item $\lambda$ grand : forte régularisation, solution proche de $\mathbf{0}$
+\end{itemize}
+
+Le terme $\lambda I$ garantit que $(A\T A + \lambda I)$ est toujours inversible.
+
+\subsection{Implementation}
+
+\begin{lstlisting}
+def moindres_carres_ridge(A, b, lambda_reg):
+    """
+    Moindres carres avec regularisation Ridge.
+    """
+    n = A.shape[1]
+    ATA = np.dot(A.T, A)
+    regularisation = lambda_reg * np.eye(n)
+    ATb = np.dot(A.T, b)
+
+    x_hat = np.linalg.solve(ATA + regularisation, ATb)
+    return x_hat
+\end{lstlisting}
+
+\newpage
+\section{Résumé des Formules}
+
+\begin{resultatbox}
+\begin{center}
+\textbf{\textcolor{bleu}{FORMULES ESSENTIELLES}}
+\end{center}
+
+\vspace{0.5cm}
+
+\renewcommand{\arraystretch}{1.8}
+\begin{tabular}{|p{4.5cm}|p{8cm}|}
+\hline
+\textbf{Concept} & \textbf{Formule} \\
+\hline
+Problème & $\displaystyle \min_{\mathbf{x}} \norm{A\mathbf{x} - \mathbf{b}}_2^2$ \\
+\hline
+Équations normales & $A\T A \hat{\mathbf{x}} = A\T \mathbf{b}$ \\
+\hline
+Pseudo-inverse & $A\pinv = (A\T A)^{-1} A\T$ \\
+\hline
+Solution & $\hat{\mathbf{x}} = A\pinv \mathbf{b} = (A\T A)^{-1} A\T \mathbf{b}$ \\
+\hline
+Matrice de projection & $P = A A\pinv = A(A\T A)^{-1} A\T$ \\
+\hline
+Via SVD & $A = U\Sigma V\T \Rightarrow A\pinv = V \Sigma\pinv U\T$ \\
+\hline
+Ridge (régularisé) & $\hat{\mathbf{x}}_\lambda = (A\T A + \lambda I)^{-1} A\T \mathbf{b}$ \\
+\hline
+\end{tabular}
+\end{resultatbox}
+
+\section{Conclusion}
+
+La méthode des moindres carrés et la pseudo-inverse de Moore-Penrose constituent des outils fondamentaux en mathématiques appliquées :
+
+\begin{enumerate}
+    \item \textbf{Universalité} : Applicable à tout système linéaire surdéterminé.
+
+    \item \textbf{Optimalité} : Fournit la meilleure approximation au sens de la norme euclidienne.
+
+    \item \textbf{Interprétation géométrique} : La solution correspond à une projection orthogonale sur l'espace colonne.
+
+    \item \textbf{Fondement du Machine Learning} : La régression linéaire, base de nombreux algorithmes, repose entièrement sur cette théorie.
+
+    \item \textbf{Extensions} : Régularisation (Ridge, LASSO), moindres carrés pondérés.
+\end{enumerate}
+
+\vspace{0.5cm}
+
+\begin{resultatbox}
+\begin{center}
+\textbf{\textcolor{bleu}{À RETENIR}}
+
+La pseudo-inverse $A\pinv = (A\T A)^{-1} A\T$ généralise la notion d'inverse aux matrices non carrées. Elle donne la solution unique de norme minimale au problème des moindres carrés.
+\end{center}
+\end{resultatbox}
+
+\vspace{1.5cm}
+
+\begin{center}
+\fbox{\parbox{0.85\textwidth}{
+\centering
+\vspace{0.5cm}
+\textit{``La méthode des moindres carrés est probablement}\\
+\textit{la technique d'estimation la plus importante en statistique.''}\\[0.5cm]
+--- \textbf{Carl Friedrich Gauss}, 1809
+\vspace{0.5cm}
+}}
+\end{center}
+
+\vspace{1.5cm}
+
+\begin{flushright}
+\textit{Daoud Hechaïchi}\\
+Rapport Technique - Mathématiques Appliquées
+\end{flushright}
+
+\end{document}
